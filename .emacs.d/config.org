@@ -1,0 +1,990 @@
+#+TITLE config.org
+#+AUTHOR Tibor Schneider
+#+DATE 22.12.2018
+
+#+PROPERTY: header-args :tangle yes
+
+* Global Setup
+** Debug: Measure Time
+#+BEGIN_SRC emacs-lisp
+(defvar *emacs-load-start* (current-time))
+(defun anarcat/time-to-ms (time)
+  (+ (* (+ (* (car time) (expt 2 16)) (car (cdr time))) 1000000) (car (cdr (cdr time)))))
+(defun anarcat/display-timing ()
+  (message ".emacs loaded in %fms" (/ (- (anarcat/time-to-ms (current-time)) (anarcat/time-to-ms *emacs-load-start*)) 1000000.0)))
+(add-hook 'after-init-hook 'anarcat/display-timing t)
+#+END_SRC
+** Package Manager
+   Use Melpa
+#+BEGIN_SRC emacs-lisp
+(require 'package)
+(package-initialize)
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+#+END_SRC
+
+   Bootstrap use-package
+#+BEGIN_SRC emacs-lisp
+(unless (package-installed-p 'use-package)
+  (package-refresh-contents)
+  (package-install 'use-package))
+#+END_SRC
+
+** Prevent emacs from changing init.el
+#+BEGIN_SRC emacs-lisp
+(setq custom-file (make-temp-file "emacs-custom"))
+#+END_SRC
+
+** Custom Configuration folder
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'load-path "~/.emacs.d/lisp")
+#+END_SRC
+
+** Define backup folder
+#+BEGIN_SRC emacs-lisp
+(setq backup-directory-alist '(("." . "~/.emacs.d/backup"))
+  backup-by-copying t 
+  version-control t
+  delete-old-versions t
+  kept-new-versions 20
+  kept-old-versions 5)
+#+END_SRC
+
+** shortcut to edit this file
+Configure org-babel to use :tangle yes as default
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'org-babel-default-header-args
+             '(:tangle . "yes"))
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(defun find-config()
+  "Edit config.org"
+  (interactive)
+  (find-file "~/.emacs.d/config.org"))
+(global-set-key (kbd "C-c i") 'find-config)
+#+END_SRC
+
+Bind to F11
+#+BEGIN_SRC emacs-lisp
+(defun reload-init ()
+  "Reloads the config file."
+  (interactive)
+  (org-babel-tangle-file (expand-file-name "~/.emacs.d/config.org") 
+                         (expand-file-name "~/.emacs.d/config.el") 
+                         "emacs-lisp")
+  (load-file (expand-file-name "~/.emacs.d/config.el")))
+
+(bind-key "<f11>" 'reload-init)
+#+END_SRC
+
+** disable unnecessary bars
+#+BEGIN_SRC emacs-lisp
+(menu-bar-mode -1)
+(tool-bar-mode -1)
+(scroll-bar-mode -1)
+#+END_SRC
+
+** Line Numbering
+#+BEGIN_SRC emacs-lisp
+(global-nlinum-mode 1)
+(global-linum-mode 0)
+#+END_SRC
+
+** Wraping
+#+BEGIN_SRC emacs-lisp
+(global-visual-line-mode 1)
+#+END_SRC
+
+** Remove whitespaces at the end of lines on save
+#+BEGIN_SRC
+(add-hook 'before-save-hook 'delete-trailing-whitespace)
+#+END_SRC
+
+** Indentation
+#+BEGIN_SRC emacs-lisp
+(setq-default indent-tabs-mode nil)
+(setq-default tab-width 4)
+#+END_SRC
+
+** Treat underscore as part of the name
+#+BEGIN_SRC emacs_lisp
+(modify-syntax-entry ?_ "w")
+#+END_SRC
+* Evil Mode
+** Global Settings
+(see [[https://bytebucket.org/lyro/evil/raw/default/doc/evil.pdf]])
+Settings
+#+BEGIN_SRC emacs-lisp
+(setq evil-auto-indent t)
+(setq evil-shift-width 4)
+(setq evil-flash-delay 3)
+(setq evil-want-C-u-scroll t)
+#+END_SRC
+
+** Collections
+#+BEGIN_SRC emacs-lisp
+(setq evil-want-keybinding nil)
+(setq evil-want-integration t)
+#+END_SRC
+
+** Load Evil Mode
+#+BEGIN_SRC emacs-lisp
+(require 'evil)
+(evil-mode 1)
+(when (require 'evil-collection nil t)
+  (evil-collection-init))
+#+END_SRC
+
+* Navigation
+** IDO
+#+BEGIN_SRC emacs-lisp
+(require 'ido)
+(ido-mode t)
+#+END_SRC
+
+Configuration
+#+BEGIN_SRC emacs-lisp
+;(setq ido-separator "|")
+;; activate ido everywhere
+(setq ido-everywhere t)
+;; flex matching
+;(setq ido-enable-flex-matching t)
+(setq ido-enable-prefix t)
+;; find a file at any point
+(setq ido-use-filename-at-point 'guess)
+;; do not ask for permission to create new buffer
+;(setq ido-create-new-buffer 'always)
+;; order in which files are shown
+(setq ido-file-extensions-order '(".org" ".py" ".tex" ".el" ".h" ".hpp" ".c" ".cpp"))
+#+END_SRC
+
+Ignoring files, folders and buffers for completion
+#+BEGIN_SRC emacs-lisp
+(defun ido-ignore-most-star-buffers (name)
+  (string-match-p "^*" name))
+(setq ido-ignore-buffers (list "\\` " #'ido-ignore-most-star-buffers))
+(setq ido-ignore-folders '("\\.git/" "env/" "env2\\.7/" "env3\\.7/"))
+#+END_SRC
+
+*** Bindings
+#+BEGIN_SRC emacs-lisp
+(global-set-key (kbd "C-SPC") 'ido-switch-buffer)
+#+END_SRC
+** Folding
+#+BEGIN_SRC emacs-lisp
+(defun my-hs-toggle-end-of-line () 
+    " go to end of line and toggle folding "
+    ;(forward-sexp)
+    (message "normal fold")
+    (hs-toggle-hiding))
+
+(defun my-toggle-node ()
+    " toggle folding for different modes "
+    (interactive)
+    (if (string= major-mode "org-mode") 
+        (org-cycle)
+        (my-hs-toggle-end-of-line)))
+(define-key evil-normal-state-map (kbd "SPC") 'my-toggle-node)
+#+END_SRC
+
+Define Custom Pattern for HideShow
+#+BEGIN_SRC emacs-lisp
+(defun my-hs-enable-mode () 
+    "enable HideShow Mode"
+    (hs-minor-mode)
+    (defvar hs-special-modes-alist
+        (mapcar 'purecopy
+        '((c-mode     "{" "}" "/[*/]" nil nil)
+          (c++-mode   "{" "}" "/[*/]" nil nil)
+          (bibtex-mode ("@\\S(*\\(\\s(\\)" 1))
+          (java-mode  "{" "}" "/[*/]" nil nil)
+          (js-mode    "{" "}" "/[*/]" nil)
+          (p4_14-mode "{" "}" "/[*/]" nil nil)
+          (p4_16-mode "{" "}" "/[*/]" nil nil)
+          (json-mode  "[" "]" nil nil nil)
+          (json-mode  "{" "}" nil nil nil)))))
+#+END_SRC
+
+Hooks for modes
+#+BEGIN_SRC emacs-lisp
+(add-hook 'c-mode-common-hook   'my-hs-enable-mode)
+(add-hook 'emacs-lisp-mode-hook 'my-hs-enable-mode)
+(add-hook 'java-mode-hook       'my-hs-enable-mode)
+(add-hook 'lisp-mode-hook       'my-hs-enable-mode)
+(add-hook 'perl-mode-hook       'my-hs-enable-mode)
+(add-hook 'sh-mode-hook         'my-hs-enable-mode)
+(add-hook 'p4_14-mode-hook      'my-hs-enable-mode)
+(add-hook 'p4_16-mode-hook      'my-hs-enable-mode)
+(add-hook 'python-mode-hook     'my-hs-enable-mode)
+(add-hook 'json-mode-hook       'my-hs-enable-mode)
+#+END_SRC
+*** Old and ugly Configuration
+Enable Evil Vimish Fold
+#+BEGIN_SRC emacs-lisp
+;(evil-vimish-fold-mode 1)
+#+END_SRC
+
+Folding Key Binding
+#+BEGIN_SRC emacs-lisp
+;(define-key evil-normal-state-map (kbd "SPC") 'evil-toggle-fold)
+#+END_SRC
+
+Folding for P4
+(first two commands removes p4_14-mode and p4_16-mode from evil-fold-list)
+#+BEGIN_SRC emacs-lisp
+;(setq evil-fold-list (remove-if (lambda (e) (eq (caar e) 'p4_14-mode)) evil-fold-list))
+;(setq evil-fold-list (remove-if (lambda (e) (eq (caar e) 'p4_16-mode)) evil-fold-list))
+;(add-to-list 'evil-fold-list '((p4_14-mode) ))
+#+END_SRC
+
+yafolding with ctrl-enter
+#+BEGIN_SRC emacs-lisp
+;(defvar yafolding-mode-map
+;  (let ((map (make-sparse-keymap)))
+;    (define-key map (kbd "<C-S-return>") #'yafolding-hide-parent-element)
+;    (define-key map (kbd "<C-M-return>") #'yafolding-toggle-all)
+;    (define-key map (kbd "<C-return>") #'yafolding-toggle-element)
+;    map))
+;
+;(add-hook 'prog-mode-hook
+;          (lambda () (yafolding-mode)))
+#+END_SRC
+
+** Split view
+#+BEGIN_SRC emacs-lisp
+;(define-key evil-normal-state-map "v" 'split-window-horizontally)
+;(define-key evil-normal-state-map "s" 'split-window-vertically)
+#+END_SRC
+
+** cyclic buffer navigation (unused)
+use plugin set shortcuts
+#+BEGIN_SRC emacs-lisp
+;(add-hook 'after-init-hook 'cycbuf-init)
+;(define-key evil-normal-state-map (kbd "C-<right>") 'cycbuf-switch-to-next-buffer)
+;(define-key evil-normal-state-map (kbd "C-<left>") 'cycbuf-switch-to-previous-buffer)
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+;(setq cycbuf-dont-show-regexp 
+;  '("^ "
+;    "^\\*cycbuf\\*$"
+;    "^\\*.*\\*$"))
+#+END_SRC
+** awesome tab
+Use Awesome Tabs
+#+BEGIN_SRC emacs-lisp
+;(require 'awesome-tab)
+;(awesome-tab-mode t)
+;(global-set-key (kbd "C-<right>") 'awesome-tab-forward-tab)
+;(global-set-key (kbd "C-<left>") 'awesome-tab-backward-tab)
+;(global-set-key (kbd "C-<down>") 'awesome-tab-forward-group)
+;(global-set-key (kbd "C-<up>") 'awesome-tab-backward-group)
+#+END_SRC
+
+** AceJump
+#+BEGIN_SRC emacs-lisp
+(require 'ace-jump-mode)
+(define-key evil-normal-state-map (kbd "C-f") 'ace-jump-mode)
+(define-key evil-insert-state-map (kbd "C-f") 'ace-jump-mode)
+#+END_SRC
+** Dumb Jump
+#+BEGIN_SRC emacs-lisp
+(dump-jump-mode)
+(define-key evil-normal-state-map (kbd "C-c l") 'dumb-jump-go)
+(define-key evil-insert-state-map (kbd "C-c l") 'dumb-jump-go)
+(define-key evil-normal-state-map (kbd "C-c h") 'dumb-jump-back)
+(define-key evil-insert-state-map (kbd "C-c h") 'dumb-jump-back)
+#+END_SRC emacs-lisp
+
+* Utilities
+** Git
+#+BEGIN_SRC emacs-lisp
+(global-set-key (kbd "C-c g") 'magit-status)
+(require 'evil-magit)
+#+END_SRC
+
+*** Keybindings
+|---------------------+---------|
+| Command             | binding |
+|---------------------+---------|
+| cherry pick         | a/A     |
+| branch              | b       |
+| commit              | c       |
+| diff                | d/D     |
+| fetch               | f       |
+| pull                | F       |
+| help                | h/?     |
+| ignore (.gitignore) | i       |
+| delete              | k       |
+| untrack             | K       |
+| log                 | l/L     |
+| merge               | m       |
+| push                | P       |
+| quit                | q       |
+| rebase              | r       |
+| rename              | R       |
+| stage               | s       |
+|---------------------+---------|
+|                     |         |
+** Company Mode
+Enable Company Mode in all modes
+#+BEGIN_SRC emacs-lisp
+(require 'company)
+(add-hook 'after-init-hook 'global-company-mode)
+#+END_SRC
+
+Configure Trigger
+#+BEGIN_SRC emacs-lisp
+(setq company-idle-delay 0)
+(setq company-minimum-prefix-length 2)
+#+END_SRC
+
+set company-childframe for org and latex
+#+BEGIN_SRC emacs-lisp
+(require 'company-childframe)
+(add-hook 'org-mode-hook 'company-posframe-mode)
+(add-hook 'latex-mode-hook 'company-posframe-mode)
+#+END_SRC
+
+** Auto Complete (unused)
+#+BEGIN_SRC emacs-lisp
+;(global-auto-complete-mode t)
+;(setq ac-delay 0.1)
+;(setq ac-auto-show-menu t)
+#+END_SRC
+
+Enable Autocomplete in all modes (except minibufferp)
+#+BEGIN_SRC emacs-lisp
+;(defun auto-complete-mode-maybe ()
+;  "No maybe for you. Only AC!"
+;  (unless (minibufferp (current-buffer))
+;    (auto-complete-mode 1)))
+#+END_SRC
+
+** NeoTree (NERDTree)
+#+BEGIN_SRC emacs-lisp
+(require 'neotree)
+(global-set-key [f8] 'neotree-toggle)
+#+END_SRC
+
+Some keybindings will overlap with evil:
+#+BEGIN_SRC emacs-lisp
+(evil-define-key 'normal neotree-mode-map (kbd "TAB") 'neotree-enter)
+(evil-define-key 'normal neotree-mode-map (kbd "SPC") 'neotree-quick-look)
+(evil-define-key 'normal neotree-mode-map (kbd "q") 'neotree-hide)
+(evil-define-key 'normal neotree-mode-map (kbd "g") 'neotree-refresh)
+(evil-define-key 'normal neotree-mode-map (kbd "n") 'neotree-next-line)
+(evil-define-key 'normal neotree-mode-map (kbd "p") 'neotree-previous-line)
+(evil-define-key 'normal neotree-mode-map (kbd "A") 'neotree-stretch-toggle)
+(evil-define-key 'normal neotree-mode-map (kbd "H") 'neotree-hidden-file-toggle)
+#+END_SRC
+
+Appearence
+#+BEGIN_SRC emacs-lisp
+;(setq neo-theme (if (display-graphic-p) 'icons 'arrow))
+(setq neo-theme 'icons)
+(setq neo-window-fixed-size nil)
+(setq neo-window-width 50)
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(global-set-key (kbd "C-c d") 'neotree-dir)
+(global-set-key (kbd "C-c r") 'neotree-refresh)
+#+END_SRC
+
+*** Ignore List
+#+BEGIN_SRC emacs-lisp
+(setq neo-hidden-regexp-list '(
+  "^\\."
+  "\\.pyc$"
+  "~$"
+  "^#.*#$"
+  "\\.elc$"
+  "\\.o$"
+  "\\.o$"
+  "\\.aux$"
+  "\\.glo$"
+  "\\.idx$"
+  "\\.log$"
+  "\\.toc$"
+  "\\.ist$"
+  "\\.acn$"
+  "\\.acr$"
+  "\\.alg$"
+  "\\.bbl$"
+  "\\.blg$"
+  "\\.dvi$"
+  "\\.glg$"
+  "\\.gls$"
+  "\\.ilg$"
+  "\\.ind$"
+  "\\.lof$"
+  "\\.lot$"
+  "\\.maf$"
+  "\\.mtc$"
+  "\\.mtc1$"
+  "\\.out$"
+  "\\.el$"
+  "\\.bib.bak$"
+  "\\.bib.sav$"
+  "\\.synctex.gz$"
+))
+#+END_SRC
+
+** Org
+#+BEGIN_SRC emacs-lisp
+(setq org-startup-indented 'f)
+(setq org-special-ctrl-a/e 't)
+(setq org-src-fontify-natively 't)
+(setq src-tab-acts-natively t)
+(setq org-src-window-setup 'current-window)
+(setq org-format-latex-options (plist-put org-format-latex-options :scale 2.0))
+(setq org-agenda-files '("~/notes/plan.org" "~/notes/todo.org"))
+(setq org-default-notes-file "~/notes/todo.org")
+#+END_SRC
+
+*** Todo Items
+Log everything into drawers
+#+BEGIN_SRC emacs-lisp
+(setq org-log-into-drawer "LOGBOOK")
+#+END_SRC
+
+Define TODO keywords, and how they should be logged
+#+BEGIN_SRC emacs-lisp
+(setq org-todo-keywords 
+  '((sequence "TODO(t!)" "WAIT(w@/!)" "|" "DONE(d!)" "CANCELED(c@/!)")))
+#+END_SRC
+
+Archiving stuff
+#+BEGIN_SRC emacs-lisp
+(setq org-archive-location "~/notes/journal.org::datetree/")
+#+END_SRC
+*** Tags
+#+BEGIN_SRC emacs-lisp :results silent
+(setq org-tags-column -90)
+(setq org-tag-alist '((:startgroup . nil) 
+                      ("ETH" . ?e) ("private" . ?p) 
+                      (:endgroup . nil) (:newline . nil)
+                      ("SemTh" . ?s)
+                      ("coding" . ?c) ("writing" . ?w) ("admin" . ?a)))
+#+END_SRC
+
+*** shortcut for opening the agenda.org
+#+BEGIN_SRC emacs-lisp
+(defun find-notes () 
+  (interactive)
+  (ido-find-file-in-dir "~/notes"))
+(global-set-key (kbd "<f5>") 'find-notes)
+(global-set-key (kbd "<f6>") 'org-capture)
+(global-set-key (kbd "C-c a") 'org-agenda)
+#+END_SRC
+
+*** Capture Templates
+Capture Templates
+#+BEGIN_SRC emacs-lisp
+(setq org-capture-templates 
+ '(("t" "TODO" entry 
+     (file+headline "~/notes/todo.org" "Capture") 
+     (file "~/notes/.templates/todo.template")
+     :empty-lines-before 1)
+   ("l" "TODO with link" entry 
+     (file+headline "~/notes/todo.org" "Capture") 
+     (file "~/notes/.templates/todo_link.template")
+     :empty-lines-before 1)
+   ("s" "Semester Project TODO with link" entry 
+     (file+headline "~/notes/todo.org" "Semester Thesis") 
+     (file "~/notes/.templates/todo_semth.template")
+     :empty-lines-before 1)
+   ("j" "Journal" entry 
+     (file+datetree "~/notes/journal.org")
+     (file "~/notes/.templates/journal.template"))))
+#+END_SRC
+
+*** Evil Org
+#+BEGIN_SRC emacs-lisp
+(require 'evil-org)
+(add-hook 'org-mode-hook 'evil-org-mode)
+(evil-org-set-key-theme '(navigation insert textobjects additional calendar))
+(require 'evil-org-agenda)
+(evil-org-agenda-set-keys)
+#+END_SRC
+
+*** reveal.js
+#+BEGIN_SRC emacs-lisp
+(require 'ox-reveal)
+(setq org-reveal-root "file:///opt/revealjs")
+#+END_SRC
+
+** traad (refactoring)
+#+BEGIN_SRC emacs-lisp
+(require 'iedit)
+#+END_SRC
+** Indent Guides
+#+BEGIN_SRC emacs-lisp
+;(require 'highlight-indentation)
+;(setq highlight-indentation-blank-lines 't)
+;(highlight-indentation-mode)
+#+END_SRC
+** Email: MU4E
+#+BEGIN_SRC emacs-lisp
+;; load mu4e
+(add-to-list 'load-path "/usr/share/emacs/site-lisp/mu4e")
+(require 'mu4e)
+(require 'smtpmail)
+(require 'org-mu4e)
+;; use mu4e for e-mail in emacs
+(setq email-user-agent 'mu4e-user-agent)
+;; set maildir
+(setq mu4e-maildir "/home/tibor/Mail")
+(setq mu4e-mu-home "/home/tibor/.mu")
+;; use offline imap
+(setq mu4e-get-mail-command "offlineimap")
+;; fancy characters
+(setq mu4e-use-fancy-chars t)
+;; don't keep message buffers around
+(setq message-kill-buffer-on-exit t)
+;; view options
+(setq mu4e-view-show-images t)
+(setq mu4e-view-show-address t)
+(setq mu4e-attachment-dir "~/Downloads/attachments")
+;; choose the first context (whichg is bluewin
+(setq mu4e-context-policy 'pick-first)
+(setq mu4e-composite-context-policy nil)
+;; display colors in html view
+(setq shr-use-colors nil)
+;; always use starttls
+(setq message-send-mail-function 'smtpmail-send-it)
+(setq starttls-use-gnutls t)
+;; automatically update 
+(setq mu4e-update-interval 300)
+(setq mu4e-get-mail-command "offlineimap")
+#+END_SRC
+
+*** Contexts
+#+BEGIN_SRC emacs-lisp
+(setq mu4e-contexts
+  `( ,(make-mu4e-context
+       :name "bluewin"
+       ;;:match-func (lambda (msg) (when msg (mu4e-message-contact-field-matches msg :to "tiborschneider@bluewin.ch")))
+       :match-func (lambda (msg) (when msg (string-match-p "^/bluewin" (mu4e-message-field msg :maildir))))
+       :leave-func (lambda () (mu4e-clear-caches))
+       :vars '(;(mu4e-get-mail-command . "offlineimap -a bluewin")
+               (mu4e-compose-reply-to-address . "tiborschneider@bluewin.ch")
+               (user-mail-address . "tiborschneider@bluewin.ch")
+               (full-name . "Tibor Schneider")
+               (mu4e-send-folder . "/bluewin/Sent Items")
+               (mu4e-drafts-folder . "/bluewin/Drafts")
+               (mu4e-trash-folder . "/bluewin/Deleted Messages")
+               (smtpmail-default-smtp-server . "smtpauths.bluewin.ch")
+               (smtpmail-smtp-server . "smtpauths.bluewin.ch")
+               (smtpmail-smtp-user . "tiborschneider")
+               (smtpmail-smtp-service . 465)
+               (smtpmail-stream-type . ssl)
+               (smtpmail-local-domain . "bluewin.ch")
+               (smtpmail-queue-mail . t)
+               (smtpmail-queue-dir . "/home/tibor/Mail/bluewin/OutboxQueue/cur")
+               (mu4e-maildir-shortcuts . (("/bluewin/INBOX" . ?i)
+                                          ("/bluewin/Deleted Items" . ?d)
+                                          ("/bluewin/Sent Items" . ?s)))))
+     ,(make-mu4e-context
+       :name "ETH"
+       ;;:match-func (lambda (msg) (when msg (mu4e-message-contact-field-matches msg '(:from :to :cc :bcc) "sctibor@\(student\.\)?ethz.ch")))
+       ;;:match-func (lambda (msg) (when msg (string-match "ETH" (mu4e-message-field msg :maildir))))
+       :match-func (lambda (msg) (when msg (string-match-p "^/ETH" (mu4e-message-field msg :maildir))))
+       :leave-func (lambda () (mu4e-clear-caches))
+       :vars '(;(mu4e-get-mail-command . "offlineimap -a ETH")
+               (mu4e-compose-reply-to-address . "sctibor@ethz.ch")
+               (user-mail-address . "sctibor@ethz.ch")
+               (full-name . "Tibor Schneider")
+               (mu4e-send-folder . "/ETH/Sent Items")
+               (mu4e-drafts-folder . "/ETH/Drafts")
+               (mu4e-trash-folder . "/ETH/Deleted Items")
+               (message-send-mail-function . smtpmail-send-it)
+               (smtpmail-default-smtp-server . "mail.ethz.ch")
+               (smtpmail-smtp-server . "mail.ethz.ch")
+               (smtpmail-smtp-user . "sctibor")
+               (smtpmail-smtp-service . 587)
+               (smtpmail-stream-type . starttls)
+               (smtpmail-local-domain . "ethz.ch")
+               (smtpmail-queue-mail . t)
+               (smtpmail-queue-dir . "/home/tibor/Mail/ETH/OutboxQueue/cur")
+               (mu4e-maildir-shortcuts . (("/ETH/INBOX" . ?i)
+                                          ("/ETH/Deleted Items" . ?d)
+                                          ("/ETH/Sent Items" . ?s)))))))
+#+END_SRC
+*** Notifications
+#+BEGIN_SRC emacs-lisp
+(mu4e-alert-set-default-style 'libnotify)
+(add-hook 'after-init-hook #'mu4e-alert-enable-notifications)
+#+END_SRC
+
+Enable unread count in the mode line
+#+BEGIN_SRC emacs-lisp
+(add-hook 'after-init-hook #'mu4e-alert-enable-mode-line-display)
+#+END_SRC
+
+Configure interesting mails
+#+BEGIN_SRC emacs-lisp
+(setq mu4e-alert-interesting-mail-query
+  (concat "flag:unread " 
+    "AND NOT flag:trashed "
+    "AND NOT maildir:\"ETH/OutboxQueue\" "
+    "AND NOT maildir:\"bluewin/OutboxQueue\" "
+    "AND NOT maildir:\"bluewin/Spam\" "
+    "AND NOT maildir:\"bluewin/Junk\" "))
+#+END_SRC
+
+* Languages
+** Spelling
+#+BEGIN_SRC emacs-lisp
+(setq ispell-dictionary "en_US")
+(setq flyspell-issue-message-flag nil)
+#+END_SRC
+
+Key bindings
+#+BEGIN_SRC emacs-lisp
+(define-key evil-normal-state-map (kbd "C-s C-b") 'ispell-buffer)
+(define-key evil-normal-state-map (kbd "C-s C-w") 'ispell-word)
+(define-key evil-normal-state-map (kbd "C-s C-s") 'ispell-word)
+(define-key evil-normal-state-map (kbd "C-s C-e") 'flyspell-mode)
+#+END_SRC
+
+Key Binding for the next highlighted word
+#+BEGIN_SRC emacs-lisp
+(defun flyspell-check-next-highlighted-word ()
+  "Custom function to spell check next highlighted word"
+  (interactive)
+  (flyspell-goto-next-error)
+  (ispell-word)
+  )
+(define-key evil-normal-state-map (kbd "C-s C-n") 'flyspell-check-next-highlighted-word)
+#+END_SRC
+
+** FlyCheck
+#+BEGIN_SRC emacs-lisp
+(use-package flycheck
+  :ensure t
+  :init (global-flycheck-mode))
+(add-hook 'after-init-hook 'global-flycheck-mode)
+#+END_SRC
+
+** Rust
+*** Rust Mode & flycheck
+#+BEGIN_SRC emacs-lisp
+; rust-mode
+(require 'rust-mode)
+(add-to-list 'auto-mode-alist '("\\.rs\\'" . rust-mode))
+; flycheck support
+(with-eval-after-load 'rust-mode (add-hook 'flycheck-mode-hook #'flycheck-rust-setup))
+; cargo
+(add-hook 'rust-mode-hook 'cargo-minor-mode)
+#+END_SRC
+
+*** Company Support (Racer)
+start racer with emacs
+#+BEGIN_SRC emacs-lisp
+(add-hook 'rust-mode-hook #'racer-mode)
+(add-hook 'racer-mode-hook #'eldoc-mode)
+#+END_SRC
+
+add hook for company
+#+BEGIN_SRC emacs-lisp
+(add-hook 'racer-mode-hook #'company-mode)
+#+END_SRC
+
+Some Configurations (all currently deactivated)
+#+BEGIN_SRC emacs-lisp
+;(define-key rust-mode-map (kbd "TAB") #'company-indent-or-complete-common)
+;(setq company-tooltip-align-annotations t)
+#+END_SRC
+
+** LaTeX
+*** Config
+Some Configurations
+#+BEGIN_SRC emacs-lisp
+(setq TeX-auto-save t)
+(setq TeX-parse-self t)
+(setq-default TeX-master nil)
+#+END_SRC
+
+Hooks
+#+BEGIN_SRC emacs-lisp
+(add-hook 'LaTeX-mode-hook 'visual-line-mode)
+(add-hook 'LaTeX-mode-hook 'flyspell-mode)
+(add-hook 'LaTeX-mode-hook 'LaTeX-math-mode)
+(add-hook 'LaTeX-mode-hook 'company-posframe-mode)
+(add-hook 'LaTeX-mode-hook (lambda () (TeX-fold-mode 1)))
+#+END_SRC
+
+Additional stuff to fold
+#+BEGIN_SRC emacs-lisp
+(setq TeX-fold-env-spec-list (quote (("[comment]" ("comment"))
+                                     ("[tikzpicture]" ("tikzpicture"))
+                                     ("[algorithm]" ("algorithm"))
+                                     ("[lstlisting]" ("lstlisting")))))
+#+END_SRC
+
+
+Use reftex
+#+BEGIN_SRC emacs-lisp
+(add-hook 'LaTeX-mode-hook 'turn-on-reftex)
+(setq reftex-plug-into-ACUTeX t)
+#+END_SRC
+
+Deactivate Company Mode
+#+BEGIN_SRC emacs-lisp
+(defun deactivate-company () 
+  (setq global-company-mode nil))
+(add-hook 'LaTeX-mode-hook 'deactivate-company)
+#+END_SRC
+
+*** Company Support
+#+BEGIN_SRC emacs-lisp
+(require 'company-auctex)
+(company-auctex-init)
+#+END_SRC
+
+*** compile and view
+#+BEGIN_SRC emacs-lisp
+(TeX-source-correlate-mode)
+(TeX-PDF-mode)
+(add-to-list 'TeX-view-program-selection
+             '(output-pdf "Zathura"))
+#+END_SRC
+
+Preview settings
+#+BEGIN_SRC emacs-lisp
+(setq preview-preserve-indentation t)
+(setq preview-preserve-counters t)
+#+END_SRC
+
+** Python
+*** Elpy
+[[https://elpy.readthedocs.io/en/latest/index.html][Elpy Documentation]]
+#+BEGIN_SRC emacs-lisp
+(elpy-enable)
+#+END_SRC
+
+Interactive Shell and interpreter
+#+BEGIN_SRC emacs-lisp
+(setenv "IPY_TEST_SIMPLE_PROMPT" "1")
+(setq python-shell-interpreter "ipython"
+      python-shell-interpreter-args "-i")
+#+END_SRC
+
+Use flycheck instead of flymake
+#+BEGIN_SRC emacs-lisp
+(when (load "flycheck" t t)
+  (setq elpy-modules (delq 'elpy-module-flymake elpy-modules))
+  (add-hook 'elpy-mode-hook 'flycheck-mode))
+#+END_SRC
+
+**** Key Bindings
+| binding     | explenation                                                                  |
+|-------------+------------------------------------------------------------------------------|
+| C-c C-c     | evaluate current script (or region if selected) in interactive python shell  |
+| C-RET       | evaluate current statement                                                   |
+| C-c C-z     | Switch between script and interactive shell                                  |
+| C-c C-d     | display documentation for the thing under cursor. Popup can be closed with q |
+|-------------+------------------------------------------------------------------------------|
+| C-c C-f     | find file in current project                                                 |
+|             | elpy-set-project-root                                                        |
+|-------------+------------------------------------------------------------------------------|
+| M-TAB       | completion with company                                                      |
+| M-RET       | goto definition                                                              |
+| M-BACKSPACE | go back                                                                      |
+| C-x 4 M-.   | goto definition in new window                                                |
+| C-c C-o     | list all occurrences in current buffer                                       |
+|-------------+------------------------------------------------------------------------------|
+| C-c C-z     | switch between script and interactive shell                                  |
+| C-c C-k     | kill interactive shell                                                       |
+|-------------+------------------------------------------------------------------------------|
+| C-c C-n     | Goto next error                                                              |
+| C-c C-p     | Goto previous error                                                          |
+| C-c C-v     | check syntax                                                                 |
+|-------------+------------------------------------------------------------------------------|
+| C-c C-e     | multiedit (only in current buffer or selection)                              |
+| C-c C-r r   | elpy refactor                                                                |
+
+Remap goto definition
+#+BEGIN_SRC emacs-lisp
+(define-key elpy-mode-map (kbd "M-RET") 'elpy-goto-definition)
+(define-key elpy-mode-map (kbd "M-<backspace>") 'pop-tag-mark)
+#+END_SRC
+
+*** Company Support (jedi)
+#+BEGIN_SRC emacs-lisp
+;(setq jedi:complete-on-dot t) 
+;(setq jedi:tooltip-method 'pos-tip)
+;; (setq jedi:tooltip-method nil) 
+#+END_SRC
+*** Virtual Environment
+#+BEGIN_SRC emacs-lisp
+;(require 'pyvenv)
+#+END_SRC
+*** Treat underscores as part of the word
+#+BEGIN_SRC emacs-lisp
+;(add-hook 'python-mode-hook #'(lambda () (modify-syntax-entry ?_ "w")))
+#+END_SRC
+*** automatic docstring
+#+BEGIN_SRC emacs-lisp
+;(defun chomp (str)
+;  "Chomp leading and tailing whitespace from STR."
+;  (let ((s (if (symbolp str) (symbol-name str) str)))
+;       (replace-regexp-in-string
+;         "\\(^[[:space:]\n]*\\|[[:space:]\n]*$\\)" "" s)))
+;(defun get-function-definition(sentence)
+;  (if (string-match "def.*(.*):" sentence)
+;      (match-string 0 sentence)))
+;(defun get-parameters(sentence)
+;  (setq y (get-function-definition sentence))
+;  (if y (if (string-match "(.*)" y)
+;            (match-string 0 y))))
+;(autoload 'thing-at-point "thingatpt" nil t) ;; build-in librairie
+;(defun python-insert-docstring()
+;  (interactive)
+;  (setq p (get-parameters (thing-at-point 'sentence)))
+;  (forward-line 1)
+;  (insert "    \"\"\"\n")
+;  (insert "    Args:\n")
+;  (setq params (split-string p "[?\,?\(?\)?\ ]"))
+;  (while params
+;    (if (/= (length (chomp (car params))) 0)
+;      (progn
+;        (insert "        ")
+;        (insert (chomp (car params)))
+;        (insert ": \n")))
+;    (setq params (cdr params)))
+;  (insert "    Returns:\n    \"\"\"\n"))
+;(evil-define-key 'normal python-mode-map (kbd "<f4>") 'python-insert-docstring)
+#+END_SRC
+*** python mode hook
+#+BEGIN_SRC emacs-lisp
+;(defun my/python-mode-hook ()
+;  (add-to-list 'company-backends 'company-jedi)
+;  (dumb-jump-mode))
+;(add-hook 'python-mode-hook 'my/python-mode-hook)
+#+END_SRC
+** P4
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'load-path "~/.emacs.d/lisp/p4")
+(require 'p4_16-mode)
+(require 'p4_14-mode)
+(require 'ass-mode)
+#+END_SRC
+** C#
+Enable and configure omnisharp in csharp mode
+#+BEGIN_SRC emacs-lisp
+(setq omnisharp-server-executable-path "/opt/omnisharp/run")
+
+(add-hook 'csharp-mode-hook 'omnisharp-mode)
+
+(setq indent-tabs-mode nil)
+(setq c-syntactic-indentation t)
+;(c-set-style "ellemtel")
+(setq c-basic-offset 4)
+(setq truncate-lines t)
+(setq tab-width 4)
+(setq evil-shift-width 4)
+
+;(local-set-key (kbd "C-c r r") 'omnisharp-run-code-action-refactoring)
+;(local-set-key (kbd "C-c C-c") 'recompile)
+#+END_SRC
+
+#+RESULTS:
+: 4
+
+Enable Company
+#+BEGIN_SRC emacs-lisp
+(eval-after-load
+ 'company
+ '(add-to-list 'company-backends 'company-omnisharp))
+
+(add-hook 'csharp-mode-hook #'company-mode)
+#+END_SRC
+
+Enable Flycheck
+#+BEGIN_SRC emacs-lisp
+(add-hook 'csharp-mode-hook #'flycheck-mode)
+#+END_SRC
+** HTML
+#+BEGIN_SRC emacs-lisp
+(setq sgml-set-face t)
+(setq sgml-auto-activate-dtd t)
+(setq sgml-indent-data t)
+#+END_SRC
+
+* Theming
+** Color Definitions
+#+BEGIN_SRC emacs-lisp
+(require 'color)
+(defvar color-gray1  "#22242c")
+(defvar color-gray2  "#30333f")
+(defvar color-bg     "#383c4a")
+(defvar color-gray3  "#404552")
+(defvar color-gray4  "#4b5162")
+(defvar color-gray5  "#65737e")
+(defvar color-gray6  "#7c818c")
+(defvar color-blue   "#5294e2")
+(defvar color-red    "#bf616a")
+(defvar color-orange "#d08770")
+(defvar color-gblue  "#8fa1b3")
+(defvar color-green  "#a3be8c")
+(defvar color-purple "#b48ead")
+#+END_SRC
+
+** Rainbow Delimiters
+#+BEGIN_SRC emacs-lisp
+(add-hook 'prog-mode-hook #'rainbow-delimiters-mode)
+#+END_SRC
+
+** Font
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'default-frame-alist '(font . "Monofur Nerd Font Mono-18"))
+(set-face-attribute 'default t :font "Monofur Nerd Font Mono-18")
+#+END_SRC
+
+** Powerline
+initialize
+#+BEGIN_SRC emacs-lisp
+(require 'powerline)
+(require 'powerline-evil)
+#+END_SRC
+
+setup powerline
+#+BEGIN_SRC emacs-lisp
+(load "~/.emacs.d/lisp/custom-powerline-theme.el")
+;(setq powerline-evil-tag-style 'verbose)
+(powerline-evil-custom-color-theme)
+#+END_SRC
+
+*** Shorten Minor Modes
+#+BEGIN_SRC emacs-lisp
+(require 'delight)
+(delight '((company-posframe-mode nil "company-posframe")
+           (undo-tree-mode nil "undo-tree")
+           (visual-line-mode nil "simple")
+           (company-mode "C" "company")
+           (org-indent-mode nil "org-indent")))
+#+END_SRC
+
+** Color Theme
+Different themes in different modes
+#+BEGIN_SRC emacs-lisp
+(defun bright-theme-hook ()
+  (setq awesome-tab-background-color "#e1e2e4")
+  (load-theme 'tibor-bright t)
+  (powerline-reset))
+(defun dark-theme-hook ()
+  (setq awesome-tab-background-color "#30333f")
+  (load-theme 'tibor t)
+  (powerline-reset))
+;;(add-hook 'LaTeX-mode-hook 'bright-theme-hook)
+#+END_SRC
+
+use theme
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'custom-theme-load-path "~/.emacs.d/themes")
+(dark-theme-hook)
+#+END_SRC
+
